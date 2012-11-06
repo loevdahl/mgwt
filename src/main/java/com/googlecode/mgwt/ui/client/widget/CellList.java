@@ -35,13 +35,27 @@ import com.googlecode.mgwt.dom.client.event.touch.TouchHandler;
 import com.googlecode.mgwt.dom.client.event.touch.TouchMoveEvent;
 import com.googlecode.mgwt.dom.client.event.touch.TouchStartEvent;
 import com.googlecode.mgwt.dom.client.recognizer.EventPropagator;
+import com.googlecode.mgwt.dom.client.recognizer.longtap.LongTapEvent;
+import com.googlecode.mgwt.dom.client.recognizer.longtap.LongTapHandler;
+import com.googlecode.mgwt.dom.client.recognizer.swipe.SwipeEndEvent;
+import com.googlecode.mgwt.dom.client.recognizer.swipe.SwipeEvent;
+import com.googlecode.mgwt.dom.client.recognizer.swipe.SwipeEvent.DIRECTION;
+import com.googlecode.mgwt.dom.client.recognizer.swipe.SwipeHandler;
+import com.googlecode.mgwt.dom.client.recognizer.swipe.SwipeMoveEvent;
+import com.googlecode.mgwt.dom.client.recognizer.swipe.SwipeStartEvent;
 import com.googlecode.mgwt.ui.client.MGWT;
 import com.googlecode.mgwt.ui.client.MGWTStyle;
 import com.googlecode.mgwt.ui.client.theme.base.ListCss;
 import com.googlecode.mgwt.ui.client.widget.celllist.Cell;
+import com.googlecode.mgwt.ui.client.widget.celllist.CellLongTapEvent;
+import com.googlecode.mgwt.ui.client.widget.celllist.CellLongTapHandler;
 import com.googlecode.mgwt.ui.client.widget.celllist.CellSelectedEvent;
 import com.googlecode.mgwt.ui.client.widget.celllist.CellSelectedHandler;
+import com.googlecode.mgwt.ui.client.widget.celllist.CellSwipedEvent;
+import com.googlecode.mgwt.ui.client.widget.celllist.CellSwipedHandler;
+import com.googlecode.mgwt.ui.client.widget.celllist.HasCellLongTapHandler;
 import com.googlecode.mgwt.ui.client.widget.celllist.HasCellSelectedHandler;
+import com.googlecode.mgwt.ui.client.widget.celllist.HasCellSwipedHandler;
 import com.googlecode.mgwt.ui.client.widget.touch.TouchWidget;
 
 /**
@@ -77,7 +91,7 @@ import com.googlecode.mgwt.ui.client.widget.touch.TouchWidget;
  * @author Daniel Kurka
  * @param <T> the type of the model to render
  */
-public class CellList<T> extends Composite implements HasCellSelectedHandler {
+public class CellList<T> extends Composite implements HasCellSelectedHandler, HasCellSwipedHandler, HasCellLongTapHandler {
 
   protected static final EventPropagator EVENT_PROPAGATOR = GWT.create(EventPropagator.class);
 
@@ -115,9 +129,10 @@ public class CellList<T> extends Composite implements HasCellSelectedHandler {
 
   }
 
-  private class InternalTouchHandler implements TouchHandler {
+  private class InternalTouchHandler implements TouchHandler, SwipeHandler, LongTapHandler {
 
     private boolean moved;
+    private boolean longTapped;
     private int index;
     private Element node;
     private int x;
@@ -151,7 +166,7 @@ public class CellList<T> extends Composite implements HasCellSelectedHandler {
         node.removeClassName(css.selected());
         stopTimer();
       }
-      if (started && !moved && index != -1) {
+      if (started && !moved && index != -1 && !longTapped) {
         fireSelectionAtIndex(index, originalElement);
       }
       node = null;
@@ -170,6 +185,7 @@ public class CellList<T> extends Composite implements HasCellSelectedHandler {
         node.removeClassName(css.selected());
       }
       moved = false;
+      longTapped = false;
       index = -1;
       // Get the event target.
       EventTarget eventTarget = event.getNativeEvent().getEventTarget();
@@ -222,6 +238,40 @@ public class CellList<T> extends Composite implements HasCellSelectedHandler {
 
       }
 
+    }
+
+    private int startedAt(SwipeEvent<?> event) {
+      switch (event.getDirection()) {
+      case BOTTOM_TO_TOP:
+      case TOP_TO_BOTTOM:
+        return y;
+      case LEFT_TO_RIGHT:
+      case RIGHT_TO_LEFT:
+        return x;
+      default:
+        return 0;
+      }
+    }
+
+    @Override
+    public void onSwipeMove(SwipeMoveEvent event) {
+      fireSwipedAtIndex(index, originalElement, startedAt(event), event.getDirection(), event.getDistance());
+    }
+
+    @Override
+    public void onSwipeStart(SwipeStartEvent event) {
+
+    }
+
+    @Override
+    public void onSwipeEnd(SwipeEndEvent event) {
+      fireSwipedAtIndex(index, originalElement, startedAt(event), event.getDirection(), event.getDistance());
+    }
+
+    @Override
+    public void onLongTap(LongTapEvent event) {
+      longTapped = true;
+      fireLongTapAtIndex(index, originalElement);
     }
   }
 
@@ -288,6 +338,16 @@ public class CellList<T> extends Composite implements HasCellSelectedHandler {
     return addHandler(cellSelectedHandler, CellSelectedEvent.getType());
   }
 
+  @Override
+  public HandlerRegistration addCellSwipedHandler(CellSwipedHandler cellSwipedHandler) {
+    return addHandler(cellSwipedHandler, CellSwipedEvent.getType());
+  }
+
+  @Override
+  public HandlerRegistration addCellLongTapHandler(CellLongTapHandler cellLongTapHandler) {
+    return addHandler(cellLongTapHandler, CellLongTapEvent.getType());
+  }
+
   /*
    * (non-Javadoc)
    * 
@@ -304,6 +364,11 @@ public class CellList<T> extends Composite implements HasCellSelectedHandler {
     handlers.add(main.addTouchStartHandler(internalTouchHandler));
     handlers.add(main.addTouchMoveHandler(internalTouchHandler));
 
+    handlers.add(main.addSwipeEndHandler(internalTouchHandler));
+    handlers.add(main.addSwipeStartHandler(internalTouchHandler));
+    handlers.add(main.addSwipeMoveHandler(internalTouchHandler));
+
+    handlers.add(main.addLongTapHandler(internalTouchHandler));
   }
 
   /*
@@ -425,6 +490,14 @@ public class CellList<T> extends Composite implements HasCellSelectedHandler {
 
   protected void fireSelectionAtIndex(int index, Element element) {
     EVENT_PROPAGATOR.fireEvent(this, new CellSelectedEvent(index, element));
+  }
+
+  protected void fireSwipedAtIndex(int index, Element element, int startedAt, DIRECTION direction, int distance) {
+    EVENT_PROPAGATOR.fireEvent(this, new CellSwipedEvent(index, element, startedAt, direction, distance));
+  }
+
+  protected void fireLongTapAtIndex(int index, Element element) {
+    EVENT_PROPAGATOR.fireEvent(this, new CellLongTapEvent(index, element));
   }
 
   protected void startTimer(final Element node) {
