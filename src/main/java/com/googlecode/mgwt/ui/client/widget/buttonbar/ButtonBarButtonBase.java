@@ -27,6 +27,7 @@ import com.googlecode.mgwt.ui.client.MGWT;
 import com.googlecode.mgwt.ui.client.MGWTStyle;
 import com.googlecode.mgwt.ui.client.theme.base.ButtonBarButtonCss;
 import com.googlecode.mgwt.ui.client.widget.base.ButtonBase;
+import com.googlecode.mgwt.ui.client.widget.base.HasImageResource;
 
 /**
  * <h1>Base class for all buttons in the button bar</h1>
@@ -53,8 +54,7 @@ import com.googlecode.mgwt.ui.client.widget.base.ButtonBase;
  * @author Daniel Kurka
  * 
  */
-public class ButtonBarButtonBase extends ButtonBase {
-
+public class ButtonBarButtonBase extends ButtonBase implements HasImageResource {
 	protected final static IconHandler ICON_HANDLER = GWT.create(IconHandler.class);
 
 	public interface IconHandler {
@@ -90,6 +90,8 @@ public class ButtonBarButtonBase extends ButtonBase {
 		}
 	}
 
+	private ImageResource icon;
+
 	public ButtonBarButtonBase(ImageResource icon) {
 		this(MGWTStyle.getTheme().getMGWTClientBundle().getButtonBarButtonCss(), icon, MGWTStyle.getTheme().getMGWTClientBundle().getButtonBarHighlightImage());
 	}
@@ -98,22 +100,22 @@ public class ButtonBarButtonBase extends ButtonBase {
 		this(MGWTStyle.getTheme().getMGWTClientBundle().getButtonBarButtonCss(), icon, highlight);
 	}
 
-	public ButtonBarButtonBase(ButtonBarButtonCss css, final ImageResource icon, final ImageResource highlight) {
+	public ButtonBarButtonBase(ButtonBarButtonCss css, ImageResource icon, final ImageResource highlight) {
 		super(css);
-		ICON_HANDLER.setIcons(getElement(), icon, highlight, false);
+		setIcon(icon);
 		addStyleName(css.barButton());
 
 		addTouchHandler(new TouchHandler() {
 
 			@Override
 			public void onTouchCanceled(TouchCancelEvent event) {
-				ICON_HANDLER.setIcons(getElement(), icon, highlight, false);
+				ICON_HANDLER.setIcons(getElement(), ButtonBarButtonBase.this.icon, highlight, false);
 
 			}
 
 			@Override
 			public void onTouchEnd(TouchEndEvent event) {
-				ICON_HANDLER.setIcons(getElement(), icon, highlight, false);
+				ICON_HANDLER.setIcons(getElement(), ButtonBarButtonBase.this.icon, highlight, false);
 
 			}
 
@@ -124,10 +126,26 @@ public class ButtonBarButtonBase extends ButtonBase {
 
 			@Override
 			public void onTouchStart(TouchStartEvent event) {
-				ICON_HANDLER.setIcons(getElement(), icon, highlight, true);
+				ICON_HANDLER.setIcons(getElement(), ButtonBarButtonBase.this.icon, highlight, true);
 
 			}
 		});
 	}
 
+	
+	/**
+	 * @return the {@link com.google.gwt.resources.client.ImageResource} of the icon for this button
+	 */
+	public ImageResource getIcon() {
+		return icon;
+	}
+
+	/**
+	 * Sets the icon of the button
+	 * @param the {@link com.google.gwt.resources.client.ImageResource} of the icon to be shown by this button
+	 */
+	public void setIcon(ImageResource icon) {
+		this.icon = icon;
+		ICON_HANDLER.setIcons(getElement(), icon, null, false);
+	}
 }
